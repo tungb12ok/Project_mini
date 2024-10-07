@@ -1,0 +1,234 @@
+@{
+ViewData["Title"] = "Employee Management";
+}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@ViewData["Title"]</title>
+    <link rel="stylesheet" href="~/Views/Employees/Style.css">
+</head>
+
+<body>
+<header>
+    <h1>Employee Management</h1>
+</header>
+
+<main>
+    <h2>Employee Management (CRUD)</h2>
+
+    <form id="employeeForm">
+        <input type="hidden" id="employeeId" name="employeeId" />
+        <label for="employeeName">Name:</label>
+        <input type="text" id="employeeName" name="employeeName" required />
+        <label for="employeeEmail">Email:</label>
+        <input type="email" id="employeeEmail" name="employeeEmail" required />
+        <label for="employeePassword">Password:</label> <!-- Thêm trường mật khẩu -->
+        <input type="password" id="employeePassword" name="employeePassword" required />
+        <label for="employeeDepartment">Department:</label>
+        <select id="employeeDepartment" name="employeeDepartment" required>
+        </select>
+        <button type="submit">Save Employee</button>
+        <button type="button" id="resetFormBtn">Reset Form</button>
+    </form>
+
+    <label for="filterDepartment">Filter by Department:</label>
+    <select id="filterDepartment" name="filterDepartment">
+        <option value="">All Departments</option>
+    </select>
+    <button id="filterBtn">Filter</button>
+
+    <table id="employeeTable">
+        <thead>
+        <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Department</th>
+            <th>Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+</main>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    // Hàm lấy JWT token từ localStorage
+    function getAuthToken() {
+        const token = localStorage.getItem('jwtToken');
+        if (!token) {
+            alert('Token is missing. Redirecting to login page.');
+            window.location.href = '/Home/Login'; // Điều hướng người dùng đến trang login nếu không có token
+        }
+        return token;
+    }
+
+    // Hàm thiết lập header Authorization cho mỗi yêu cầu AJAX
+    function setAuthorizationHeader(xhr) {
+        const token = getAuthToken();
+        if (token) {
+            xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+        }
+    }
+
+    $(document).ready(function() {
+        // Hàm tải danh sách các phòng ban từ API
+        function loadDepartments() {
+            $.ajax({
+                url: 'http://localhost:5051/api/Department',
+                method: 'GET',
+                beforeSend: setAuthorizationHeader, // Thêm token vào header trước khi gửi yêu cầu
+                success: function(departments) {
+                    $('#employeeDepartment').empty();
+                    $('#filterDepartment').empty();
+                    $('#employeeDepartment').append('<option value="">Select Department</option>');
+                    $('#filterDepartment').append('<option value="">All Departments</option>');
+                    departments.forEach(function(department) {
+                        $('#employeeDepartment').append(`<option value="${department.id}">${department.name}</option>`);
+                        $('#filterDepartment').append(`<option value="${department.id}">${department.name}</option>`);
+                    });
+                },
+                error: function(jqxhr, textStatus, errorThrown) {
+                    alert('Failed to load departments. Error: ' + errorThrown);
+                }
+            });
+        }
+
+        // Hàm tải danh sách nhân viên, có thể lọc theo phòng ban
+        function loadEmployees(departmentId = '') {
+            let url = 'http://localhost:5051/api/Employee';
+            if (departmentId) {
+                url = `http://localhost:5051/api/Employee/by-department/${departmentId}`;
+            }
+
+            $.ajax({
+                url: url,
+                method: 'GET',
+                beforeSend: setAuthorizationHeader, // Thêm token vào header trước khi gửi yêu cầu
+                success: function(employees) {
+                    $('#employeeTable tbody').empty();
+                    employees.forEach(function(employee) {
+                        $('#employeeTable tbody').append(`
+                                <tr data-id="${employee.id}">
+                                    <td>${employee.name}</td>
+                                    <td>${employee.email}</td>
+                                    <td>${employee.role ? employee.role.name : 'N/A'}</td>
+                                    <td>${employee.department ? employee.department.name : 'N/A'}</td>
+                                    <td>
+                                        <button class="edit-employee-btn">Edit</button>
+                                        <button class="delete-employee-btn">Delete</button>
+                                    </td>
+                                </tr>
+                            `);
+                    });
+                },
+                error: function(jqxhr, textStatus, errorThrown) {
+                    alert('Failed to load employees. Error: ' + errorThrown);
+                }
+            });
+        }
+
+        // Tải dữ liệu ban đầu
+        loadDepartments();
+        loadEmployees();
+
+        // Hàm reset form
+        function resetForm() {
+            $('#employeeId').val('');
+            $('#employeeForm')[0].reset();
+        }
+
+        // Xử lý khi submit form nhân viên
+        $('#employeeForm').on('submit', function(e) {
+            e.preventDefault();
+            const employeeId = $('#employeeId').val();
+            const employeeData = {
+                id: employeeId ? parseInt(employeeId) : 0,
+                name: $('#employeeName').val(),
+                email: $('#employeeEmail').val(),
+                password: $('#employeePassword').val(), // Lấy dữ liệu từ trường mật khẩu
+                departmentId: parseInt($('#employeeDepartment').val())
+            };
+
+            const method = employeeId ? 'PUT' : 'POST';
+            const url = employeeId ? `http://localhost:5051/api/Employee/${employeeId}` : 'http://localhost:5051/api/Employee';
+
+            // Gọi method trước khi gửi yêu cầu
+            $.ajax({
+                url: url,
+                method: method,
+                contentType: 'application/json',
+                data: JSON.stringify(employeeData),
+                beforeSend: setAuthorizationHeader, // Thêm token vào header trước khi gửi yêu cầu
+                success: function() {
+                    loadEmployees();
+                    resetForm();
+                    alert('Employee saved successfully!');
+                },
+                error: function(jqxhr, textStatus, errorThrown) {
+                    alert('Failed to save employee. Error: ' + errorThrown);
+                }
+            });
+        });
+
+        // Lọc nhân viên theo phòng ban
+        $('#filterBtn').on('click', function() {
+            const departmentId = $('#filterDepartment').val();
+            loadEmployees(departmentId);
+        });
+
+        // Xử lý khi nhấn nút "Edit"
+        $(document).on('click', '.edit-employee-btn', function() {
+            const employeeId = $(this).closest('tr').data('id');
+
+            $.ajax({
+                url: `http://localhost:5051/api/Employee/${employeeId}`,
+                method: 'GET',
+                beforeSend: setAuthorizationHeader, // Thêm token vào header trước khi gửi yêu cầu
+                success: function(employee) {
+                    $('#employeeId').val(employee.id);
+                    $('#employeeName').val(employee.name);
+                    $('#employeeEmail').val(employee.email);
+                    $('#employeeDepartment').val(employee.department.id);
+                    $('#employeePassword').val(employee.password); // Trường mật khẩu được để trống khi chỉnh sửa
+                },
+                error: function(jqxhr, textStatus, errorThrown) {
+                    alert('Failed to fetch employee details. Error: ' + errorThrown);
+                }
+            });
+        });
+
+        // Xử lý khi nhấn nút "Delete"
+        $(document).on('click', '.delete-employee-btn', function() {
+            const employeeId = $(this).closest('tr').data('id');
+            if (confirm('Are you sure you want to delete this employee?')) {
+                $.ajax({
+                    url: `http://localhost:5051/api/Employee/${employeeId}`,
+                    method: 'DELETE',
+                    beforeSend: setAuthorizationHeader, // Thêm token vào header trước khi gửi yêu cầu
+                    success: function() {
+                        loadEmployees();
+                        alert('Employee deleted successfully!');
+                    },
+                    error: function(jqxhr, textStatus, errorThrown) {
+                        alert('Failed to delete employee. Error: ' + errorThrown);
+                    }
+                });
+            }
+        });
+
+        // Xử lý khi nhấn nút reset form
+        $('#resetFormBtn').on('click', function() {
+            resetForm();
+        });
+    });
+</script>
+
+</body>
+
+</html>

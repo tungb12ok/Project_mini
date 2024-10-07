@@ -1,0 +1,165 @@
+@{
+    ViewData["Title"] = "Department Management";
+}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@ViewData["Title"]</title>
+    <link rel="stylesheet" href="~/Views/Departments/Style.css">
+    <style>
+        ul {
+            list-style-type: none;
+        }
+
+        li {
+            margin-left: 20px;
+        }
+
+        .department-name {
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+<header>
+    <h1>Department Management Tree</h1>
+</header>
+
+<main>
+    <div id="departmentTree"></div>
+    <form id="departmentForm">
+        <input type="hidden" id="departmentId" name="departmentId"/>
+        <label for="departmentName">Department Name:</label>
+        <input type="text" id="departmentName" name="departmentName" required/>
+        <button type="submit">Save Department</button>
+    </form>
+
+    <table id="departmentTable">
+        <thead>
+        <tr>
+            <th>Department Name</th>
+            <th>Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+
+</main>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    function getAuthToken() {
+        return localStorage.getItem('jwtToken');
+    }
+
+    function setAuthorizationHeader(xhr) {
+        const token = getAuthToken();
+        if (token) {
+            xhr.setRequestHeader('Authorization', 'Bearer ' + token); 
+        }
+    }
+
+    $(document).ready(function () {
+        function loadDepartments() {
+            $.ajax({
+                url: 'http://localhost:5051/api/Department',
+                method: 'GET',
+                beforeSend: setAuthorizationHeader, 
+                success: function (departments) {
+                    $('#departmentTable tbody').empty();
+                    departments.forEach(function (department) {
+                        $('#departmentTable tbody').append(`
+                            <tr data-id="${department.id}">
+                                <td>${department.name}</td>
+                                <td>
+                                    <button class="edit-department-btn">Edit</button>
+                                    <button class="delete-department-btn">Delete</button>
+                                </td>
+                            </tr>
+                        `);
+                    });
+                }
+            });
+        }
+
+        loadDepartments();
+
+        $('#departmentForm').on('submit', function (e) {
+            e.preventDefault(); 
+            const departmentId = $('#departmentId').val();
+            const departmentData = {
+                name: $('#departmentName').val()
+            };
+
+            const method = departmentId ? 'PUT' : 'POST';
+            const url = departmentId ? 'http://localhost:5051/api/Department/${departmentId}' : 'http://localhost:5051/api/Department' ;
+
+           c
+        });
+
+        $(document).on('click', '.edit-department-btn', function () {
+            const departmentId = $(this).closest('tr').data('id');
+            $.ajax({
+                url: `http://localhost:5051/api/Department/${departmentId}`,
+                method: 'GET',
+                beforeSend: setAuthorizationHeader, 
+                success: function (department) {
+                    $('#departmentId').val(department.id);
+                    $('#departmentName').val(department.name);
+                }
+            });
+        });
+
+        $(document).on('click', '.delete-department-btn', function () {
+            const departmentId = $(this).closest('tr').data('id');
+            if (confirm('Are you sure you want to delete this department?')) {
+                $.ajax({
+                    url: `http://localhost:5051/api/Department/${departmentId}`,
+                    method: 'DELETE',
+                    beforeSend: setAuthorizationHeader, 
+                    success: function () {
+                        loadDepartments(); 
+                    }
+                });
+            }
+        });
+    });
+    $(document).ready(function () {
+        $.ajax({
+            url: 'http://localhost:5051/api/Department/tree',
+            type: 'GET',
+            success: function (data) {
+                // Dynamically generate the department tree
+                generateTree($('#departmentTree'), data);
+            },
+            error: function () {
+                alert('Failed to load department data.');
+            }
+        });
+
+        function generateTree(container, departments) {
+            let ul = $('<ul></ul>');
+            departments.forEach(department => {
+                let li = $('<li></li>').append($('<span class="department-name"></span>').text(department.name));
+
+                if (department.children && department.children.length > 0) {
+                    generateTree(li, department.children);
+                }
+
+                ul.append(li);
+            });
+            container.append(ul);
+        }
+    });
+</script>
+
+
+</body>
+
+</html>
